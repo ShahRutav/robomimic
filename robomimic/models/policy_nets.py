@@ -133,8 +133,8 @@ class PerturbationActorNetwork(ActorNetwork):
 
             mlp_layer_dims ([int]): sequence of integers for the MLP hidden layers sizes.
 
-            perturbation_scale (float): the perturbation network output is always squashed to 
-                lie in +/- @perturbation_scale. The final action output is equal to the original 
+            perturbation_scale (float): the perturbation network output is always squashed to
+                lie in +/- @perturbation_scale. The final action output is equal to the original
                 input action added to the output perturbation (and clipped to lie in [-1, 1]).
 
             goal_shapes (OrderedDict): a dictionary that maps modality to
@@ -314,14 +314,14 @@ class GaussianActorNetwork(ActorNetwork):
         at the last layer. Network outputs parameters of Gaussian distribution.
         """
         return OrderedDict(
-            mean=(self.ac_dim,), 
+            mean=(self.ac_dim,),
             scale=(self.ac_dim,),
         )
 
     def forward_train(self, obs_dict, goal_dict=None):
         """
         Return full Gaussian distribution, which is useful for computing
-        quantities necessary at train-time, like log-likelihood, KL 
+        quantities necessary at train-time, like log-likelihood, KL
         divergence, etc.
 
         Args:
@@ -355,7 +355,7 @@ class GaussianActorNetwork(ActorNetwork):
 
 
         # the Independent call will make it so that `batch_shape` for dist will be equal to batch size
-        # while `event_shape` will be equal to action dimension - ensuring that log-probability 
+        # while `event_shape` will be equal to action dimension - ensuring that log-probability
         # computations are summed across the action dimension
         dist = D.Normal(loc=mean, scale=scale)
         dist = D.Independent(dist, 1)
@@ -485,15 +485,15 @@ class GMMActorNetwork(ActorNetwork):
         at the last layer. Network outputs parameters of GMM distribution.
         """
         return OrderedDict(
-            mean=(self.num_modes, self.ac_dim), 
-            scale=(self.num_modes, self.ac_dim), 
+            mean=(self.num_modes, self.ac_dim),
+            scale=(self.num_modes, self.ac_dim),
             logits=(self.num_modes,),
         )
 
     def forward_train(self, obs_dict, goal_dict=None):
         """
         Return full GMM distribution, which is useful for computing
-        quantities necessary at train-time, like log-likelihood, KL 
+        quantities necessary at train-time, like log-likelihood, KL
         divergence, etc.
 
         Args:
@@ -658,7 +658,7 @@ class RNNActorNetwork(RNN_MIMO_MLP):
         # infers temporal dimension from input shape
         mod = list(self.obs_shapes.keys())[0]
         T = input_shape[mod][0]
-        TensorUtils.assert_size_at_dim(input_shape, size=T, dim=0, 
+        TensorUtils.assert_size_at_dim(input_shape, size=T, dim=0,
                 msg="RNNActorNetwork: input_shape inconsistent in temporal dimension")
         return [T, self.ac_dim]
 
@@ -691,7 +691,7 @@ class RNNActorNetwork(RNN_MIMO_MLP):
         else:
             actions = outputs
             state = None
-        
+
         # apply tanh squashing to ensure actions are in [-1, 1]
         actions = torch.tanh(actions["action"])
 
@@ -822,15 +822,15 @@ class RNNGMMActorNetwork(RNNActorNetwork):
         at the last layer. Network outputs parameters of GMM distribution.
         """
         return OrderedDict(
-            mean=(self.num_modes, self.ac_dim), 
-            scale=(self.num_modes, self.ac_dim), 
+            mean=(self.num_modes, self.ac_dim),
+            scale=(self.num_modes, self.ac_dim),
             logits=(self.num_modes,),
         )
 
     def forward_train(self, obs_dict, goal_dict=None, rnn_init_state=None, return_state=False):
         """
         Return full GMM distribution, which is useful for computing
-        quantities necessary at train-time, like log-likelihood, KL 
+        quantities necessary at train-time, like log-likelihood, KL
         divergence, etc.
 
         Args:
@@ -856,7 +856,7 @@ class RNNGMMActorNetwork(RNNActorNetwork):
             outputs, state = outputs
         else:
             state = None
-        
+
         means = outputs["mean"]
         scales = outputs["scale"]
         logits = outputs["logits"]
@@ -913,8 +913,8 @@ class RNNGMMActorNetwork(RNNActorNetwork):
 
     def forward_train_step(self, obs_dict, goal_dict=None, rnn_state=None):
         """
-        Unroll RNN over single timestep to get action GMM distribution, which 
-        is useful for computing quantities necessary at train-time, like 
+        Unroll RNN over single timestep to get action GMM distribution, which
+        is useful for computing quantities necessary at train-time, like
         log-likelihood, KL divergence, etc.
 
         Args:
@@ -1071,7 +1071,7 @@ class VAEActor(Module):
             actions (torch.Tensor): a batch of actions
 
             obs_dict (dict): a dictionary that maps modalities to torch.Tensor
-                batches. These should correspond to the observation modalities 
+                batches. These should correspond to the observation modalities
                 used for conditioning in either the decoder or the prior (or both).
 
             goal_dict (dict): a dictionary that maps modalities to torch.Tensor
@@ -1102,7 +1102,7 @@ class VAEActor(Module):
             z (torch.Tensor): if provided, these latents are used to generate
                 reconstructions from the VAE, and the prior is not sampled.
 
-            n (int): this argument is used to specify the number of samples to 
+            n (int): this argument is used to specify the number of samples to
                 generate from the prior. Only required if @z is None - i.e.
                 sampling takes place
 
@@ -1148,7 +1148,7 @@ class VAEActor(Module):
 
     def output_shape(self, input_shape=None):
         """
-        This implementation is required by the Module superclass, but is unused since we 
+        This implementation is required by the Module superclass, but is unused since we
         never chain this module to other ones.
         """
         return [self.ac_dim]
@@ -1162,7 +1162,7 @@ class VAEActor(Module):
             actions (torch.Tensor): a batch of actions
 
             obs_dict (dict): a dictionary that maps modalities to torch.Tensor
-                batches. These should correspond to the observation modalities 
+                batches. These should correspond to the observation modalities
                 used for conditioning in either the decoder or the prior (or both).
 
             goal_dict (dict): a dictionary that maps modalities to torch.Tensor
@@ -1184,9 +1184,9 @@ class VAEActor(Module):
         """
         action_inputs = OrderedDict(action=actions)
         return self._vae.forward(
-            inputs=action_inputs, 
-            outputs=action_inputs, 
-            conditions=obs_dict, 
+            inputs=action_inputs,
+            outputs=action_inputs,
+            conditions=obs_dict,
             goals=goal_dict,
             freeze_encoder=freeze_encoder)
 

@@ -12,7 +12,7 @@ Args:
 
     dataset (str): if provided, override the dataset path defined in the config
 
-    debug (bool): set this flag to run a quick training run for debugging purposes    
+    debug (bool): set this flag to run a quick training run for debugging purposes
 """
 
 import argparse
@@ -96,10 +96,11 @@ def train(config, device):
         for env_name in env_names:
             env = EnvUtils.create_env_from_metadata(
                 env_meta=env_meta,
-                env_name=env_name, 
-                render=False, 
+                env_name=env_name,
+                render=False,
                 render_offscreen=config.experiment.render_video,
-                use_image_obs=shape_meta["use_images"], 
+                use_image_obs=shape_meta["use_images"],
+                frame_stack=config.observation.frame_stack
             )
             envs[env.name] = env
             print(envs[env.name])
@@ -118,7 +119,7 @@ def train(config, device):
         ac_dim=shape_meta["ac_dim"],
         device=device,
     )
-    
+
     # save the config as a json file
     with open(os.path.join(log_dir, '..', 'config.json'), 'w') as outfile:
         json.dump(config, outfile, indent=4)

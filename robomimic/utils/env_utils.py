@@ -105,10 +105,10 @@ def is_robosuite_env(env_meta=None, env_type=None, env=None):
 
 def create_env(
     env_type,
-    env_name,  
-    render=False, 
-    render_offscreen=False, 
-    use_image_obs=False, 
+    env_name,
+    render=False,
+    render_offscreen=False,
+    use_image_obs=False,
     **kwargs,
 ):
     """
@@ -133,9 +133,9 @@ def create_env(
     # note: pass @postprocess_visual_obs True, to make sure images are processed for network inputs
     env_class = get_env_class(env_type=env_type)
     env = env_class(
-        env_name=env_name, 
-        render=render, 
-        render_offscreen=render_offscreen, 
+        env_name=env_name,
+        render=render,
+        render_offscreen=render_offscreen,
         use_image_obs=use_image_obs,
         postprocess_visual_obs=True,
         **kwargs,
@@ -147,10 +147,11 @@ def create_env(
 
 def create_env_from_metadata(
     env_meta,
-    env_name=None,  
-    render=False, 
-    render_offscreen=False, 
-    use_image_obs=False, 
+    frame_stack,
+    env_name=None,
+    render=False,
+    render_offscreen=False,
+    use_image_obs=False,
 ):
     """
     Create environment.
@@ -180,13 +181,14 @@ def create_env_from_metadata(
         env_name = env_meta["env_name"]
     env_type = get_env_type(env_meta=env_meta)
     env_kwargs = env_meta["env_kwargs"]
+    env_kwargs.update({"frame_stack": frame_stack})
 
     env = create_env(
         env_type=env_type,
-        env_name=env_name,  
-        render=render, 
-        render_offscreen=render_offscreen, 
-        use_image_obs=use_image_obs, 
+        env_name=env_name,
+        render=render,
+        render_offscreen=render_offscreen,
+        use_image_obs=use_image_obs,
         **env_kwargs,
     )
     return env
@@ -194,9 +196,9 @@ def create_env_from_metadata(
 
 def create_env_for_data_processing(
     env_meta,
-    camera_names, 
-    camera_height, 
-    camera_width, 
+    camera_names,
+    camera_height,
+    camera_width,
     reward_shaping,
 ):
     """
@@ -233,10 +235,10 @@ def create_env_for_data_processing(
     env_kwargs.pop("reward_shaping", None)
 
     return env_class.create_for_data_processing(
-        env_name=env_name, 
-        camera_names=camera_names, 
-        camera_height=camera_height, 
-        camera_width=camera_width, 
-        reward_shaping=reward_shaping, 
+        env_name=env_name,
+        camera_names=camera_names,
+        camera_height=camera_height,
+        camera_width=camera_width,
+        reward_shaping=reward_shaping,
         **env_kwargs,
     )

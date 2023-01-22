@@ -6,6 +6,7 @@ with metadata present in datasets.
 import json
 import numpy as np
 from copy import deepcopy
+from collections import OrderedDict, deque
 
 import mujoco_py
 import robosuite
@@ -18,12 +19,13 @@ import robomimic.envs.env_base as EB
 class EnvRobosuite(EB.EnvBase):
     """Wrapper class for robosuite environments (https://github.com/ARISE-Initiative/robosuite)"""
     def __init__(
-        self, 
-        env_name, 
-        render=False, 
-        render_offscreen=False, 
-        use_image_obs=False, 
-        postprocess_visual_obs=True, 
+        self,
+        env_name,
+        render=False,
+        render_offscreen=False,
+        use_image_obs=False,
+        postprocess_visual_obs=True,
+        frame_stack=1,
         **kwargs,
     ):
         """
@@ -88,6 +90,18 @@ class EnvRobosuite(EB.EnvBase):
                 if ("joint_pos" in ob_name) or ("eef_vel" in ob_name):
                     self.env.modify_observable(observable_name=ob_name, attribute="active", modifier=True)
 
+        self.frame_stack = frame_stack
+        self.frames = deque(maxlen=frame_stack)
+
+    def get_stacked_observation(self, observation=None):
+
+        assert len(self.frames) == self.frame_stack, (len(self.frames), self.frame_stack)
+        obs = OrderedDict()
+        for key in self.frames[0].keys():
+            obs[key] = np.stack([self.frames[ind][key] for ind in range(self.frame_stack)], axis=0)
+
+        return obs
+
     def step(self, action):
         """
         Step in the environment with an action.
@@ -103,7 +117,8 @@ class EnvRobosuite(EB.EnvBase):
         """
         obs, r, done, info = self.env.step(action)
         obs = self.get_observation(obs)
-        return obs, r, self.is_done(), info
+        self.frames.append(obs)
+        return self.get_stacked_observation(None), r, self.is_done(), info
 
     def reset(self):
         """
@@ -113,7 +128,11 @@ class EnvRobosuite(EB.EnvBase):
             observation (dict): initial observation dictionary.
         """
         di = self.env.reset()
-        return self.get_observation(di)
+        obs = self.get_observation(di)
+
+        [self.frames.append(obs) for _ in range(self.frame_stack)]
+
+        return self.get_stacked_observation(None)
 
     def reset_to(self, state):
         """
@@ -123,7 +142,7 @@ class EnvRobosuite(EB.EnvBase):
             state (dict): current simulator state that contains one or more of:
                 - states (np.ndarray): initial state of the mujoco environment
                 - model (str): mujoco scene xml
-        
+
         Returns:
             observation (dict): observation dictionary after setting the simulator state (only
                 if "states" is in @state)
@@ -147,7 +166,9 @@ class EnvRobosuite(EB.EnvBase):
             self.set_goal(**state["goal"])
         if should_ret:
             # only return obs if we've done a forward call - otherwise the observations will be garbage
-            return self.get_observation()
+            obs = self.get_observation(di)
+            [self.frames.append(obs) for _ in range(self.frame_stack)]
+            return self.get_stacked_observation(None)
         return None
 
     def render(self, mode="human", height=None, width=None, camera_name="agentview"):
@@ -174,7 +195,7 @@ class EnvRobosuite(EB.EnvBase):
         Get current environment observation dictionary.
 
         Args:
-            di (dict): current raw observation dictionary from robosuite to wrap and provide 
+            di (dict): current raw observation dictionary from robosuite to wrap and provide
                 as a dictionary. If not provided, will be queried from robosuite.
         """
         if di is None:
@@ -283,18 +304,18 @@ class EnvRobosuite(EB.EnvBase):
 
     @classmethod
     def create_for_data_processing(
-        cls, 
-        env_name, 
-        camera_names, 
-        camera_height, 
-        camera_width, 
-        reward_shaping, 
+        cls,
+        env_name,
+        camera_names,
+        camera_height,
+        camera_width,
+        reward_shaping,
         **kwargs,
     ):
         """
         Create environment for processing datasets, which includes extracting
         observations, labeling dense / sparse rewards, and annotating dones in
-        transitions. 
+        transitions.
 
         Args:
             env_name (str): name of environment
@@ -343,9 +364,9 @@ class EnvRobosuite(EB.EnvBase):
         # note that @postprocess_visual_obs is False since this env's images will be written to a dataset
         return cls(
             env_name=env_name,
-            render=False, 
-            render_offscreen=has_camera, 
-            use_image_obs=has_camera, 
+            render=False,
+            render_offscreen=has_camera,
+            use_image_obs=has_camera,
             postprocess_visual_obs=False,
             **kwargs,
         )

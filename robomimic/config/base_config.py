@@ -73,16 +73,16 @@ class BaseConfig(Config):
 
     def experiment_config(self):
         """
-        This function populates the `config.experiment` attribute of the config, 
-        which has several experiment settings such as the name of the training run, 
-        whether to do logging, whether to save models (and how often), whether to render 
-        videos, and whether to do rollouts (and how often). This class has a default 
+        This function populates the `config.experiment` attribute of the config,
+        which has several experiment settings such as the name of the training run,
+        whether to do logging, whether to save models (and how often), whether to render
+        videos, and whether to do rollouts (and how often). This class has a default
         implementation that usually doesn't need to be overriden.
         """
 
         self.experiment.name = "test"                               # name of experiment used to make log files
         self.experiment.validate = True                             # whether to do validation or not
-        self.experiment.logging.terminal_output_to_txt = True       # whether to log stdout to txt file 
+        self.experiment.logging.terminal_output_to_txt = True       # whether to log stdout to txt file
         self.experiment.logging.log_tb = True                       # enable tensorboard logging
 
 
@@ -121,14 +121,14 @@ class BaseConfig(Config):
 
     def train_config(self):
         """
-        This function populates the `config.train` attribute of the config, which 
-        has several settings related to the training process, such as the dataset 
-        to use for training, and how the data loader should load the data. This 
+        This function populates the `config.train` attribute of the config, which
+        has several settings related to the training process, such as the dataset
+        to use for training, and how the data loader should load the data. This
         class has a default implementation that usually doesn't need to be overriden.
         """
 
         # Path to hdf5 dataset to use for training
-        self.train.data = None                                      
+        self.train.data = None
 
         # Write all results to this directory. A new folder with the timestamp will be created
         # in this directory, and it will contain three subfolders - "log", "models", and "videos".
@@ -141,9 +141,9 @@ class BaseConfig(Config):
         ## dataset loader config ##
 
         # num workers for loading data - generally set to 0 for low-dim datasets, and 2 for image datasets
-        self.train.num_data_workers = 0  
+        self.train.num_data_workers = 0
 
-        # One of ["all", "low_dim", or None]. Set to "all" to cache entire hdf5 in memory - this is 
+        # One of ["all", "low_dim", or None]. Set to "all" to cache entire hdf5 in memory - this is
         # by far the fastest for data loading. Set to "low_dim" to cache all non-image data. Set
         # to None to use no caching - in this case, every batch sample is retrieved via file i/o.
         # You should almost never set this to None, even for large image datasets.
@@ -157,7 +157,7 @@ class BaseConfig(Config):
         # in utils/dataset.py for more information.
         self.train.hdf5_normalize_obs = False
 
-        # if provided, use the list of demo keys under the hdf5 group "mask/@hdf5_filter_key" for training, instead 
+        # if provided, use the list of demo keys under the hdf5 group "mask/@hdf5_filter_key" for training, instead
         # of the full dataset. This provides a convenient way to train on only a subset of the trajectories in a dataset.
         self.train.hdf5_filter_key = None
 
@@ -167,8 +167,8 @@ class BaseConfig(Config):
         # keys from hdf5 to load into each batch, besides "obs" and "next_obs". If algorithms
         # require additional keys from each trajectory in the hdf5, they should be specified here.
         self.train.dataset_keys = (
-            "actions", 
-            "rewards", 
+            "actions",
+            "rewards",
             "dones",
         )
 
@@ -184,31 +184,32 @@ class BaseConfig(Config):
 
     def algo_config(self):
         """
-        This function populates the `config.algo` attribute of the config, and is given to the 
-        `Algo` subclass (see `algo/algo.py`) for each algorithm through the `algo_config` 
-        argument to the constructor. Any parameter that an algorithm needs to determine its 
-        training and test-time behavior should be populated here. This function should be 
+        This function populates the `config.algo` attribute of the config, and is given to the
+        `Algo` subclass (see `algo/algo.py`) for each algorithm through the `algo_config`
+        argument to the constructor. Any parameter that an algorithm needs to determine its
+        training and test-time behavior should be populated here. This function should be
         implemented by every subclass.
         """
         pass
 
     def observation_config(self):
         """
-        This function populates the `config.observation` attribute of the config, and is given 
-        to the `Algo` subclass (see `algo/algo.py`) for each algorithm through the `obs_config` 
-        argument to the constructor. This portion of the config is used to specify what 
-        observation modalities should be used by the networks for training, and how the 
-        observation modalities should be encoded by the networks. While this class has a 
-        default implementation that usually doesn't need to be overriden, certain algorithm 
-        configs may choose to, in order to have seperate configs for different networks 
-        in the algorithm. 
+        This function populates the `config.observation` attribute of the config, and is given
+        to the `Algo` subclass (see `algo/algo.py`) for each algorithm through the `obs_config`
+        argument to the constructor. This portion of the config is used to specify what
+        observation modalities should be used by the networks for training, and how the
+        observation modalities should be encoded by the networks. While this class has a
+        default implementation that usually doesn't need to be overriden, certain algorithm
+        configs may choose to, in order to have seperate configs for different networks
+        in the algorithm.
         """
 
+        self.observation.frame_stack = 1
         # observation modalities
         self.observation.modalities.obs.low_dim = [             # specify low-dim observations for agent
-            "robot0_eef_pos", 
-            "robot0_eef_quat", 
-            "robot0_gripper_qpos", 
+            "robot0_eef_pos",
+            "robot0_eef_quat",
+            "robot0_gripper_qpos",
             "object",
         ]
         self.observation.modalities.obs.rgb = []              # specify rgb image observations for agent
