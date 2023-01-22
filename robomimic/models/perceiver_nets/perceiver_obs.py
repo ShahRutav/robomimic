@@ -130,7 +130,6 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x, attn
 
-
 class Block(nn.Module):
     def __init__(
         self,
@@ -235,6 +234,7 @@ class PerceiverVisionTransformer(nn.Module):
         no_patch_embed_bias=False,
         use_video=False,
         max_frames=8,
+        pretrained=False,
     ):
         """
         Args:
@@ -310,6 +310,8 @@ class PerceiverVisionTransformer(nn.Module):
             ]
         )
         self.norm = norm_layer(embed_dim)
+        if pretrained:
+            raise NotImplementedError
 
         trunc_normal_(self.pos_embed, std=0.02)
         trunc_normal_(self.cls_token, std=0.02)

@@ -1,1 +1,2 @@
 from .perceiver_obs import PerceiverVisionTransformer
+from .perceiver_obs_state import PerceiverVisionStateTransformer
