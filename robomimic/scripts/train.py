@@ -119,6 +119,8 @@ def train(config, device):
         ac_dim=shape_meta["ac_dim"],
         device=device,
     )
+    print('# Trainable Actor Params: %d' % sum(p.numel() for p in model.nets.parameters() if p.requires_grad))
+    #exit()
 
     # save the config as a json file
     with open(os.path.join(log_dir, '..', 'config.json'), 'w') as outfile:

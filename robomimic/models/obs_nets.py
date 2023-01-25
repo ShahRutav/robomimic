@@ -22,8 +22,7 @@ from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict
 import robomimic.utils.tensor_utils as TensorUtils
 import robomimic.utils.obs_utils as ObsUtils
 from robomimic.models.base_nets import Module, Sequential, MLP, RNN_Base, ResNet18Conv, SpatialSoftmax, \
-    FeatureAggregator, VisualCore, Randomizer
-from robomimic.models.perceiver_nets import PerceiverVisionTransformer
+    FeatureAggregator, VisualCore, Randomizer, PVTransformer
 
 
 def obs_encoder_factory(
@@ -467,6 +466,75 @@ class ObservationGroupEncoder(Module):
         msg = header + '(' + msg + '\n)'
         return msg
 
+class MIMO_MLP_PERCEIVER(Module):
+    def __init__(
+        self,
+        input_obs_group_shapes,
+        output_shapes,
+        layer_dims,
+        layer_func=nn.Linear,
+        activation=nn.ReLU,
+        encoder_kwargs=None,
+    ):
+        super(MIMO_MLP_PERCEIVER, self).__init__()
+
+        assert isinstance(input_obs_group_shapes, OrderedDict)
+        assert np.all([isinstance(input_obs_group_shapes[k], OrderedDict) for k in input_obs_group_shapes])
+        assert isinstance(output_shapes, OrderedDict)
+
+        self.input_obs_group_shapes = input_obs_group_shapes
+        self.output_shapes = output_shapes
+
+        self.nets = nn.ModuleDict()
+
+        # Encoder for all observation groups.
+        self.nets["encoder"] = PVTransformer( ### SKIPPING OVER VisualCore and stuff
+            input_obs_group_shapes=self.input_obs_group_shapes,
+            **encoder_kwargs["rgb"]["core_kwargs"]["backbone_kwargs"],
+        )
+
+        # flat encoder output dimension
+        mlp_input_dim = self.nets["encoder"].output_shape()[0]
+
+        # intermediate MLP layers
+        self.nets["mlp"] = MLP(
+            input_dim=mlp_input_dim,
+            output_dim=layer_dims[-1],
+            layer_dims=layer_dims[:-1],
+            layer_func=layer_func,
+            activation=activation,
+            output_activation=activation, # make sure non-linearity is applied before decoder
+        )
+
+        # decoder for output modalities
+        self.nets["decoder"] = ObservationDecoder(
+            decode_shapes=self.output_shapes,
+            input_feat_dim=layer_dims[-1],
+        )
+
+    def output_shape(self, input_shape=None):
+        return { k : list(self.output_shapes[k]) for k in self.output_shapes }
+
+    def forward(self, **inputs):
+        enc_outputs = self.nets["encoder"](**inputs)
+        mlp_out = self.nets["mlp"](enc_outputs)
+        return self.nets["decoder"](mlp_out)
+
+    def _to_string(self):
+        return ''
+
+    def __repr__(self):
+        """Pretty print network."""
+        header = '{}'.format(str(self.__class__.__name__))
+        msg = ''
+        indent = ' ' * 4
+        if self._to_string() != '':
+            msg += textwrap.indent("\n" + self._to_string() + "\n", indent)
+        msg += textwrap.indent("\nencoder={}".format(self.nets["encoder"]), indent)
+        msg += textwrap.indent("\n\nmlp={}".format(self.nets["mlp"]), indent)
+        msg += textwrap.indent("\n\ndecoder={}".format(self.nets["decoder"]), indent)
+        msg = header + '(' + msg + '\n)'
+        return msg
 
 class MIMO_MLP(Module):
     """

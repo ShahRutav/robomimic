@@ -8,6 +8,7 @@ import math
 import abc
 import numpy as np
 import textwrap
+import pprint
 from copy import deepcopy
 from collections import OrderedDict
 
@@ -19,7 +20,7 @@ from torchvision import models as vision_models
 import robomimic.utils.tensor_utils as TensorUtils
 import robomimic.utils.obs_utils as ObsUtils
 from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict
-from robomimic.models.perceiver_nets import PerceiverVisionTransformer
+import robomimic.models.perceiver_nets as PerceiverNets
 
 
 CONV_ACTIVATIONS = {
@@ -451,25 +452,37 @@ class PVTransformer(ConvBase):
     """
     def __init__(
         self,
+        input_obs_group_shapes,
         img_size=224,
         patch_size=16,
         in_chans=3,
-        num_classes=1000,
+        #num_classes=1000,
         embed_dim=768,
         depth=12,
         num_heads=12,
         mlp_ratio=4.0,
         qkv_bias=True,
         qk_scale=None,
-        representation_size=None,
+        #representation_size=None,
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.0,
         norm_layer=None,
         add_norm_before_transformer=False,
         no_patch_embed_bias=False,
+        perceiver_ct_index=[0,4,8], ## New
         use_video=False,
+        latent_size_n=128,
         max_frames=8,
+        use_text=False,
+        use_decoder=False,
+        max_text_len=10,
+        layer_drop=False,
+        use_robot_state=True,
+        pretrained=False,
+        flatten=True,
+        input_coord_conv=False, ## Useless variable
+        pre_policy_feat_act=nn.ReLU,
     ):
         """
         Args:
@@ -480,32 +493,55 @@ class PVTransformer(ConvBase):
             input_coord_conv (bool): if True, use a coordinate convolution for the first layer
                 (a convolution where input channels are modified to encode spatial pixel location)
         """
+        assert flatten == True
         super(PVTransformer, self).__init__()
-        net = PerceiverVisionTransformer(
-            img_size=img_size,
-            patch_size=patch_size,
-            in_chans=in_chans,
-            num_classes=num_classes,
-            embed_dim=embed_dim,
-            depth=depth,
-            num_heads=num_heads,
-            mlp_ratio=mlp_ratio,
-            qkv_bias=qkv_bias,
-            qk_scale=qk_scale,
-            representation_size=representation_size,
-            drop_rate=drop_rate,
-            attn_drop_rate=attn_drop_rate,
-            drop_path_rate=drop_path_rate,
-            norm_layer=norm_layer,
-            add_norm_before_transformer=add_norm_before_transformer,
-            no_patch_embed_bias=no_patch_embed_bias,
-            use_video=use_video,
-            max_frames=max_frames,
+        robot_state_dim = 0
+        key2modality = ObsUtils.OBS_KEYS_TO_MODALITIES
+        for k, input_shape in input_obs_group_shapes["obs"].items():
+            if key2modality[k] == 'low_dim':
+                robot_state_dim += input_shape[-1]
+        self.vision_state_transformer_configs={
+            "img_size": img_size,
+            "patch_size": patch_size,
+            "in_chans": in_chans,
+            #"num_classes": num_classes,
+            "embed_dim": embed_dim,
+            "depth": depth,
+            "num_heads": num_heads,
+            "mlp_ratio": mlp_ratio,
+            "qkv_bias": qkv_bias,
+            "qk_scale": qk_scale,
+            #"representation_size": representation_size,
+            "drop_rate": drop_rate,
+            "attn_drop_rate": attn_drop_rate,
+            "drop_path_rate": drop_path_rate,
+            "norm_layer": norm_layer,
+            "add_norm_before_transformer": add_norm_before_transformer,
+            "no_patch_embed_bias": no_patch_embed_bias,
+            "use_video": use_video,
+            "max_frames": max_frames,
+            "perceiver_ct_index": perceiver_ct_index, ## New
+            "latent_size_n": latent_size_n,
+            "use_text": use_text,
+            "use_decoder": use_decoder,
+            "max_text_len": max_text_len,
+            "layer_drop": layer_drop,
+            "use_robot_state": use_robot_state,
+            "robot_state_dim": robot_state_dim,
+            "pretrained": pretrained,
+        }
+        net = PerceiverNets.PerceiverVisionStateTransformer(
+            **self.vision_state_transformer_configs
         )
-        #self.nets = torch.nn.Sequential(*(list(net.children())[:-2]))
-        self.nets = net
+        self.nets = nn.ModuleDict()
+        self.nets["obs"] = net
+        self.input_obs_group_shapes = input_obs_group_shapes
+        self.embed_dim = embed_dim
+        self.latent_size_n = latent_size_n
+        assert pre_policy_feat_act is not None
+        self.pre_policy_feat_act = pre_policy_feat_act() if pre_policy_feat_act is not None else None
 
-    def output_shape(self, input_shape):
+    def output_shape(self, input_shape=None):
         """
         Function to compute output shape from inputs to this module.
 
@@ -517,28 +553,54 @@ class PVTransformer(ConvBase):
         Returns:
             out_shape ([int]): list of integers corresponding to output shape
         """
-        assert(len(input_shape) == 3)
-        if len(input_shape) == 3:
-            return [self.nets.total_output_patch, self.nets.num_features]
-        elif len(input_shape) == 4:
-            return [self.nets.total_output_patch*self.nets.max_frames, self.nets.num_features]
-        else:
-            return NotImplementedError
+        assert input_shape == None
+        return [self.latent_size_n*self.embed_dim]
 
-    def forward(self, inputs):
-        x = self.nets.visual_embed(inputs, device=inputs.device)
-        img_embed, img_embed_mask, indices, label = x[0], x[1], x[2], x[3]
-        x = self.nets(x=img_embed, x_mask=img_embed_mask)
-        if list(self.output_shape(list(inputs.shape)[1:])) != list(x.shape)[1:]:
-            raise ValueError('Size mismatch: expect size %s, but got size %s' % (
-                str(self.output_shape(list(inputs.shape)[1:])), str(list(x.shape)[1:]))
-            )
+    def forward(self, **inputs):
+        obs = inputs['obs']
+
+        del_keys = [key for key in obs if not (key in self.input_obs_group_shapes["obs"].keys())]
+        [obs.pop(key) for key in del_keys]
+
+        key2modality = ObsUtils.OBS_KEYS_TO_MODALITIES
+
+        visual_obs, robot_state = [], []
+        for key, observation in obs.items():
+            if key2modality[key] == 'rgb':
+                visual_obs.append(observation.unsqueeze(dim=1)) ## adding dimension for different camera images
+            elif key2modality[key] == 'low_dim':
+                robot_state.append(observation)
+            else:
+                raise NotImplementedError
+        visual_obs = torch.cat(visual_obs, dim=1) ## [B, num_cams, T(Optional), 3, H, W]
+        robot_state = torch.cat(robot_state, dim=-1) ## [B, T(Optional), robot_state_dim]
+
+        B, num_cams = visual_obs.shape[:2]
+        visual_obs = visual_obs.reshape((-1, *visual_obs.shape[2:]))
+        vis_embed, vis_embed_mask, indices, label, _ = self.nets["obs"].visual_embed(visual_obs, device=visual_obs.device)
+        # [B, num_cams*num_tokens, embed_dim]. Concatenating tokens from different camera
+        vis_embed = vis_embed.reshape((B, num_cams*vis_embed.shape[1], vis_embed.shape[2]))
+        # [B, num_cams*num_tokens, embed_dim]. Concatenating tokens from different camera
+        vis_embed_mask = vis_embed_mask.reshape((B, num_cams*vis_embed_mask.shape[1]))
+
+        state_embed, state_embed_mask = self.nets["obs"].robot_state_embed(robot_state) ## [B, 2, embed_dim]. State features + classification token
+        final_obs_embed = torch.cat((vis_embed, state_embed), dim=1)
+        final_obs_mask = torch.cat((vis_embed_mask, state_embed_mask), dim=1)
+
+        x = self.nets["obs"].forward_unimo(final_obs_embed, final_obs_mask)
+
+        x = x.reshape((x.shape[0], -1)) ## Flatten the output
+
+        assert list(x.shape[1:]) == self.output_shape(), "Output from model is of shape {} whereas expected shape is {}".format(list(x.shape[1:]), self.output_shape())
+        if self.pre_policy_feat_act is not None: ## very important. Loss doesn't go down otherwise
+            x = self.pre_policy_feat_act(x)
+
         return x
 
     def __repr__(self):
         """Pretty print network."""
         header = '{}'.format(str(self.__class__.__name__))
-        #return header + '(input_channel={}, input_coord_conv={})'.format(self._input_channel, self._input_coord_conv)
+        header += pprint.pformat(self.vision_state_transformer_configs)
         return header
 
 class ResNet18Conv(ConvBase):

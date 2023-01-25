@@ -10,9 +10,9 @@ class BCConfig(BaseConfig):
 
     def algo_config(self):
         """
-        This function populates the `config.algo` attribute of the config, and is given to the 
-        `Algo` subclass (see `algo/algo.py`) for each algorithm through the `algo_config` 
-        argument to the constructor. Any parameter that an algorithm needs to determine its 
+        This function populates the `config.algo` attribute of the config, and is given to the
+        `Algo` subclass (see `algo/algo.py`) for each algorithm through the `algo_config`
+        argument to the constructor. Any parameter that an algorithm needs to determine its
         training and test-time behavior should be populated here.
         """
 
@@ -31,19 +31,22 @@ class BCConfig(BaseConfig):
         self.algo.actor_layer_dims = (1024, 1024)
 
         # stochastic Gaussian policy settings
+        self.algo.combine_modalities.enabled = False              # whether to train a Gaussian policy
+
+        # stochastic Gaussian policy settings
         self.algo.gaussian.enabled = False              # whether to train a Gaussian policy
         self.algo.gaussian.fixed_std = False            # whether to train std output or keep it constant
         self.algo.gaussian.init_std = 0.1               # initial standard deviation (or constant)
         self.algo.gaussian.min_std = 0.01               # minimum std output from network
         self.algo.gaussian.std_activation = "softplus"  # activation to use for std output from policy net
-        self.algo.gaussian.low_noise_eval = True        # low-std at test-time 
+        self.algo.gaussian.low_noise_eval = True        # low-std at test-time
 
         # stochastic GMM policy settings
         self.algo.gmm.enabled = False                   # whether to train a GMM policy
         self.algo.gmm.num_modes = 5                     # number of GMM modes
         self.algo.gmm.min_std = 0.0001                  # minimum std output from network
         self.algo.gmm.std_activation = "softplus"       # activation to use for std output from policy net
-        self.algo.gmm.low_noise_eval = True             # low-std at test-time 
+        self.algo.gmm.low_noise_eval = True             # low-std at test-time
 
         # stochastic VAE policy settings
         self.algo.vae.enabled = False                   # whether to train a VAE policy
@@ -60,7 +63,7 @@ class BCConfig(BaseConfig):
         self.algo.vae.prior.is_conditioned = False                          # whether to condition prior on observations
         self.algo.vae.prior.use_gmm = False                                 # whether to use GMM prior
         self.algo.vae.prior.gmm_num_modes = 10                              # number of GMM modes
-        self.algo.vae.prior.gmm_learn_weights = False                       # whether to learn GMM weights 
+        self.algo.vae.prior.gmm_learn_weights = False                       # whether to learn GMM weights
         self.algo.vae.prior.use_categorical = False                         # whether to use categorical prior
         self.algo.vae.prior.categorical_dim = 10                            # the number of categorical classes for each latent dimension
         self.algo.vae.prior.categorical_gumbel_softmax_hard = False         # use hard selection in forward pass
@@ -75,7 +78,7 @@ class BCConfig(BaseConfig):
         # RNN policy settings
         self.algo.rnn.enabled = False       # whether to train RNN policy
         self.algo.rnn.horizon = 10          # unroll length for RNN - should usually match train.seq_length
-        self.algo.rnn.hidden_dim = 400      # hidden dimension size    
+        self.algo.rnn.hidden_dim = 400      # hidden dimension size
         self.algo.rnn.rnn_type = "LSTM"     # rnn type - one of "LSTM" or "GRU"
         self.algo.rnn.num_layers = 2        # number of RNN layers that are stacked
         self.algo.rnn.open_loop = False     # if True, action predictions are only based on a single observation (not sequence)

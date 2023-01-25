@@ -82,6 +82,7 @@ class CrossAttention(nn.Module):
         proj_drop=0.0,
     ):
         super().__init__()
+        assert dim % num_heads == 0, "The latent_size_n should be divisible by num_heads. Currently {}, {}".format(dim, num_heads)
         self.num_heads = num_heads
         head_dim = dim // num_heads
         # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
@@ -298,6 +299,7 @@ class PerceiverVisionStateTransformer(nn.Module):
         layer_drop=False,
         use_robot_state=False,
         robot_state_dim=9,
+        pretrained=False,
     ):
         """
         Args:
@@ -316,7 +318,7 @@ class PerceiverVisionStateTransformer(nn.Module):
             hybrid_backbone (nn.Module): CNN backbone to use in-place of PatchEmbed module
             norm_layer: (nn.Module): normalization layer
         """
-        super().__init__()
+        super(PerceiverVisionStateTransformer, self).__init__()
 
         self.num_features = (
             self.embed_dim
@@ -430,6 +432,8 @@ class PerceiverVisionStateTransformer(nn.Module):
         trunc_normal_(self.pos_embed, std=0.02)
         trunc_normal_(self.cls_token, std=0.02)
         self.apply(self._init_weights)
+        if pretrained:
+            raise NotImplementedError
 
     def _init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
@@ -475,14 +479,14 @@ class PerceiverVisionStateTransformer(nn.Module):
             x += temporal_embed
 
         robot_cls_token = self.robot_cls_token.expand(B, -1, -1)
-        x = torch.cat((x, robot_cls_token), dim=1)
+        x = torch.cat((x, robot_cls_token), dim=1) ## [B, 2, 768]
 
         x = self.pos_drop(x)
         if self.add_norm_before_transformer:
             x = self.pre_norm(x)
-        return x, torch.ones(x.shape[:-1])
+        return x, torch.ones(x.shape[:-1]).to(x.device)
 
-    def visual_embed(self, _x, max_image_len=200, mask_it=False):
+    def visual_embed(self, _x, max_image_len=200, mask_it=False, device=torch.device('cuda:0')):
 
         if len(_x.size()) == 5:
             use_video = True
@@ -529,7 +533,7 @@ class PerceiverVisionStateTransformer(nn.Module):
             )[None, None, :, :, :]
             .expand(x_mask.shape[0], x_mask.shape[1], -1, -1, -1)
             .flatten(1, 3)
-        )
+        ).to(device)
         x_mask = x_mask.flatten(1)
 
         if mask_it:

@@ -17,9 +17,67 @@ import torch.distributions as D
 
 import robomimic.utils.tensor_utils as TensorUtils
 from robomimic.models.base_nets import Module
-from robomimic.models.obs_nets import MIMO_MLP, RNN_MIMO_MLP
+from robomimic.models.obs_nets import MIMO_MLP, RNN_MIMO_MLP, MIMO_MLP_PERCEIVER
 from robomimic.models.vae_nets import VAE
 from robomimic.models.distributions import TanhWrappedDistribution
+
+class PerceiverActorNetwork(MIMO_MLP_PERCEIVER):
+    """
+    A basic policy network that predicts actions from observations.
+    Can optionally be goal conditioned on future observations.
+    """
+    def __init__(
+        self,
+        obs_shapes,
+        ac_dim,
+        mlp_layer_dims,
+        goal_shapes=None,
+        encoder_kwargs=None,
+    ):
+        assert isinstance(obs_shapes, OrderedDict)
+        self.obs_shapes = obs_shapes
+        self.ac_dim = ac_dim
+
+        # set up different observation groups for @MIMO_MLP
+        observation_group_shapes = OrderedDict()
+        observation_group_shapes["obs"] = OrderedDict(self.obs_shapes)
+
+        self._is_goal_conditioned = False
+        if goal_shapes is not None and len(goal_shapes) > 0:
+            assert isinstance(goal_shapes, OrderedDict)
+            self._is_goal_conditioned = True
+            self.goal_shapes = OrderedDict(goal_shapes)
+            observation_group_shapes["goal"] = OrderedDict(self.goal_shapes)
+        else:
+            self.goal_shapes = OrderedDict()
+
+        output_shapes = self._get_output_shapes()
+        super(PerceiverActorNetwork, self).__init__(
+            input_obs_group_shapes=observation_group_shapes,
+            output_shapes=output_shapes,
+            layer_dims=mlp_layer_dims,
+            encoder_kwargs=encoder_kwargs,
+        )
+
+    def _get_output_shapes(self):
+        """
+        Allow subclasses to re-define outputs from @MIMO_MLP, since we won't
+        always directly predict actions, but may instead predict the parameters
+        of a action distribution.
+        """
+        return OrderedDict(action=(self.ac_dim,))
+
+    def output_shape(self, input_shape=None):
+        return [self.ac_dim]
+
+    def forward(self, obs_dict, goal_dict=None):
+        actions = super(PerceiverActorNetwork, self).forward(obs=obs_dict, goal=goal_dict)["action"]
+        # apply tanh squashing to ensure actions are in [-1, 1]
+        return torch.tanh(actions)
+
+    def _to_string(self):
+        """Info to pretty print."""
+        return "action_dim={}".format(self.ac_dim)
 
 
 class ActorNetwork(MIMO_MLP):

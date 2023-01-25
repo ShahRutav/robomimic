@@ -54,6 +54,9 @@
         "seed": 1
     },
     "algo": {
+        "combine_modalities": {
+            "enabled": true
+        },
         "optim_params": {
             "policy": {
                 "learning_rate": {
@@ -124,22 +127,28 @@
                         "img_size": 80,
                         "patch_size": 16,
                         "in_chans": 3,
-                        "num_classes": 1000,
-                        "embed_dim": 768,
-                        "depth": 12,
-                        "num_heads": 12,
+                        "embed_dim": 256,
+                        "depth": 6,
+                        "num_heads": 4,
                         "mlp_ratio": 4.0,
                         "qkv_bias": true,
                         "qk_scale": null,
-                        "representation_size": null,
                         "drop_rate": 0.0,
                         "attn_drop_rate": 0.0,
                         "drop_path_rate": 0.0,
                         "norm_layer": null,
-                        "add_norm_before_transformer": null,
+                        "add_norm_before_transformer": false,
                         "no_patch_embed_bias": null,
-                        "use_video": false,
-                        "max_frames": 8
+                        "perceiver_ct_index": [0, 3],
+                        "use_video": true,
+                        "max_frames": 1,
+                        "latent_size_n": 64,
+                        "use_text": false,
+                        "use_decoder": false,
+                        "max_text_len": 10,
+                        "layer_drop": false,
+                        "use_robot_state": true,
+                        "pretrained": false
                     },
                     "pool_class": null,
                     "pool_kwargs": {

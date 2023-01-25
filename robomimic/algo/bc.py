@@ -37,7 +37,10 @@ def algo_config_to_class(algo_config):
     gaussian_enabled = ("gaussian" in algo_config and algo_config.gaussian.enabled)
     gmm_enabled = ("gmm" in algo_config and algo_config.gmm.enabled)
     vae_enabled = ("vae" in algo_config and algo_config.vae.enabled)
+    combine_modalities = ("combine_modalities" in algo_config and algo_config.combine_modalities)
 
+    if combine_modalities.enabled:
+        return BC_PERCEIVER, {}
     if algo_config.rnn.enabled:
         if gmm_enabled:
             return BC_RNN_GMM, {}
@@ -50,7 +53,6 @@ def algo_config_to_class(algo_config):
     if vae_enabled:
         return BC_VAE, {}
     return BC, {}
-
 
 class BC(PolicyAlgo):
     """
@@ -110,6 +112,7 @@ class BC(PolicyAlgo):
             info = super(BC, self).train_on_batch(batch, epoch, validate=validate)
             predictions = self._forward_training(batch)
             losses = self._compute_losses(predictions, batch)
+            #print("\n", losses['l2_loss'])
 
             info["predictions"] = TensorUtils.detach(predictions)
             info["losses"] = TensorUtils.detach(losses)
@@ -221,6 +224,61 @@ class BC(PolicyAlgo):
             action (torch.Tensor): action tensor
         """
         assert not self.nets.training
+        return self.nets["policy"](obs_dict, goal_dict=goal_dict)
+
+class BC_PERCEIVER(BC):
+    """
+    Normal BC training.
+    """
+    def _create_networks(self):
+        """
+        Creates networks and places them into @self.nets.
+        """
+        self.nets = nn.ModuleDict()
+        self.nets["policy"] = PolicyNets.PerceiverActorNetwork(
+            obs_shapes=self.obs_shapes,
+            goal_shapes=self.goal_shapes,
+            ac_dim=self.ac_dim,
+            mlp_layer_dims=self.algo_config.actor_layer_dims,
+            encoder_kwargs=ObsUtils.obs_encoder_kwargs_from_config(self.obs_config.encoder),
+        )
+        self.nets = self.nets.float().to(self.device)
+
+    def process_batch_for_training(self, batch):
+        """
+        Processes input batch from a data loader to filter out
+        relevant information and prepare the batch for training.
+
+        Args:
+            batch (dict): dictionary with torch.Tensors sampled
+                from a data loader
+
+        Returns:
+            input_batch (dict): processed and filtered batch that
+                will be used for training
+        """
+        input_batch = dict()
+        input_batch["obs"] = {k: batch["obs"][k] for k in batch["obs"]}
+        input_batch["goal_obs"] = batch.get("goal_obs", None) # goals may not be present
+        input_batch["actions"] = batch["actions"][:, 0, :]
+        return TensorUtils.to_device(TensorUtils.to_float(input_batch), self.device)
+
+    def get_action(self, obs_dict, goal_dict=None):
+        """
+        Get policy action outputs.
+
+        Args:
+            obs_dict (dict): current observation
+            goal_dict (dict): (optional) goal
+
+        Returns:
+            action (torch.Tensor): action tensor
+        """
+        assert not self.nets.training
+        #print("\n")
+        #print([k for k in obs_dict.keys()])
+        #print([v.shape for v in obs_dict.values()])
+        #exit()
         return self.nets["policy"](obs_dict, goal_dict=goal_dict)
 
 
