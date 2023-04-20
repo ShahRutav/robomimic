@@ -32,6 +32,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         hdf5_normalize_obs=False,
         filter_by_attribute=None,
         load_next_obs=True,
+        n_demos=None,
     ):
         """
         Dataset class for fetching sequences of experience.
@@ -62,10 +63,10 @@ class SequenceDataset(torch.utils.data.Dataset):
 
             goal_mode (str): either "last" or None. Defaults to None, which is to not fetch goals
 
-            hdf5_cache_mode (str): one of ["all", "low_dim", or None]. Set to "all" to cache entire hdf5 
-                in memory - this is by far the fastest for data loading. Set to "low_dim" to cache all 
-                non-image data. Set to None to use no caching - in this case, every batch sample is 
-                retrieved via file i/o. You should almost never set this to None, even for large 
+            hdf5_cache_mode (str): one of ["all", "low_dim", or None]. Set to "all" to cache entire hdf5
+                in memory - this is by far the fastest for data loading. Set to "low_dim" to cache all
+                non-image data. Set to None to use no caching - in this case, every batch sample is
+                retrieved via file i/o. You should almost never set this to None, even for large
                 image datasets.
 
             hdf5_use_swmr (bool): whether to use swmr feature when opening the hdf5 file. This ensures
@@ -86,6 +87,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         self.hdf5_use_swmr = hdf5_use_swmr
         self.hdf5_normalize_obs = hdf5_normalize_obs
         self._hdf5_file = None
+        self.n_demos = n_demos
 
         assert hdf5_cache_mode in ["all", "low_dim", None]
         self.hdf5_cache_mode = hdf5_cache_mode
@@ -159,8 +161,8 @@ class SequenceDataset(torch.utils.data.Dataset):
             filter_by_attribute (str): if provided, use the provided filter key
                 to select a subset of demonstration trajectories to load
 
-            demos (list): list of demonstration keys to load from the hdf5 file. If 
-                omitted, all demos in the file (or under the @filter_by_attribute 
+            demos (list): list of demonstration keys to load from the hdf5 file. If
+                omitted, all demos in the file (or under the @filter_by_attribute
                 filter key) are used.
         """
         # filter demo trajectory by mask
@@ -170,6 +172,9 @@ class SequenceDataset(torch.utils.data.Dataset):
             self.demos = [elem.decode("utf-8") for elem in np.array(self.hdf5_file["mask/{}".format(filter_by_attribute)][:])]
         else:
             self.demos = list(self.hdf5_file["data"].keys())
+
+        if self.n_demos is not None:
+            self.demos = self.demos[:self.n_demos]
 
         # sort demo keys
         inds = np.argsort([int(elem[5:]) for elem in self.demos])
@@ -256,7 +261,7 @@ class SequenceDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         """
-        Ensure that the torch dataloader will do a complete pass through all sequences in 
+        Ensure that the torch dataloader will do a complete pass through all sequences in
         the dataset before starting a new iteration.
         """
         return self.total_num_sequences
@@ -301,7 +306,7 @@ class SequenceDataset(torch.utils.data.Dataset):
 
     def normalize_obs(self):
         """
-        Computes a dataset-wide mean and standard deviation for the observations 
+        Computes a dataset-wide mean and standard deviation for the observations
         (per dimension and per obs key) and returns it.
         """
         def _compute_traj_stats(traj_obs_dict):
@@ -513,7 +518,7 @@ class SequenceDataset(torch.utils.data.Dataset):
 
         seq = TensorUtils.pad_sequence(seq, padding=(seq_begin_pad, seq_end_pad), pad_same=True)
         pad_mask = np.array([0] * seq_begin_pad + [1] * (seq_end_index - seq_begin_index) + [0] * seq_end_pad)
-        pad_mask = pad_mask[:, None].astype(np.bool)
+        pad_mask = pad_mask[:, None].astype(bool)
 
         return seq, pad_mask
 
@@ -549,7 +554,7 @@ class SequenceDataset(torch.utils.data.Dataset):
     def get_dataset_sequence_from_demo(self, demo_id, index_in_demo, keys, seq_length=1):
         """
         Extract a (sub)sequence of dataset items from a demo given the @keys of the items (e.g., states, actions).
-        
+
         Args:
             demo_id (str): id of the demo, e.g., demo_0
             index_in_demo (int): beginning index of the sequence wrt the demo
